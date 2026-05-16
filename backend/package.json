@@ -1,0 +1,26 @@
+{
+  "name": "goplanner_backend",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon src/app.js",
+    "test:ai": "node scripts/test-ai.js",
+    "test:chat": "node scripts/test-chat.js"
+  },
+  "dependencies": {
+    "@huggingface/inference": "^4.13.4",
+    "axios": "^1.13.2",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.0.1",
+    "openai": "^6.10.0"
+  }
+}
