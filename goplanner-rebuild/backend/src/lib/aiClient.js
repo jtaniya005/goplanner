@@ -10,6 +10,9 @@ async function callModel(messages, { temperature = 0.3, maxTokens = 1500 } = {})
   const apiKey = env.hfApiKey;
   const apiUrl = HF_API_URL;
 
+  console.log('[AI Client] Model:', env.hfModel);
+  console.log('[AI Client] API Key loaded (first 8 chars):', apiKey ? apiKey.substring(0, 8) + '...' : 'undefined');
+
   if (!apiKey) {
     throw new AppError('AI is not configured on this server (HF_API_KEY missing).', 503);
   }
