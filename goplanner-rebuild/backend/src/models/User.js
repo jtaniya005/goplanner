@@ -17,11 +17,10 @@ const UserSchema = new Schema({
   homeCurrency: { type: String, default: 'USD' }
 }, { timestamps: true });
 
-UserSchema.pre('save', async function hashPassword(next) {
-  if (!this.isModified('password')) return next();
+UserSchema.pre('save', async function hashPassword() {
+  if (!this.isModified('password')) return;
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
 UserSchema.methods.comparePassword = function comparePassword(candidate) {

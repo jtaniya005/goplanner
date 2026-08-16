@@ -27,6 +27,8 @@ export default function LoginScreen() {
       Toast.show({ type: "error", text1: "Missing info", text2: "Email and password are required." });
       return;
     }
+    if (submitting) return;
+
     setSubmitting(true);
     try {
       if (mode === "login") {
@@ -37,7 +39,29 @@ export default function LoginScreen() {
       Toast.show({ type: "success", text1: mode === "login" ? "Welcome back" : "Account created", text2: "Let's plan a trip 🎉" });
       router.replace("/(tabs)/dashboard");
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
+      const apiError = err instanceof ApiError ? err : null;
+      const message = apiError ? apiError.message : "Something went wrong. Please try again.";
+
+      if (mode === "register" && apiError?.status === 409) {
+        setMode("login");
+        setPassword("");
+        Toast.show({
+          type: "info",
+          text1: "Account already exists",
+          text2: "Switching to login with this email.",
+        });
+        return;
+      }
+
+      if (mode === "login" && apiError?.status === 401) {
+        Toast.show({
+          type: "error",
+          text1: "Login failed",
+          text2: "Wrong email or password. Try again or create a new account.",
+        });
+        return;
+      }
+
       Toast.show({ type: "error", text1: mode === "login" ? "Login failed" : "Registration failed", text2: message });
     } finally {
       setSubmitting(false);
