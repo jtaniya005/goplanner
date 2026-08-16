@@ -16,7 +16,7 @@ export const env = {
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   hfApiKey: process.env.HF_API_KEY,
-  hfModel: process.env.HF_MODEL || 'moonshotai/Kimi-K2-Instruct-0905',
+  hfModel: process.env.HF_MODEL || 'mistralai/Mistral-7B-Instruct-v0.3',
   corsOrigin: process.env.CORS_ORIGIN || '*'
 };
 

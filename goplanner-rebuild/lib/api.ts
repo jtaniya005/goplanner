@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 // Set EXPO_PUBLIC_API_URL in your environment (e.g. .env at project root, or
 // `eas.json`/app config) to point at your deployed backend. Falls back to a
@@ -7,8 +8,12 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
 const TOKEN_KEY = "goplanner_token";
 
+// SecureStore is not fully supported on web; fall back to localStorage.
 export async function getToken(): Promise<string | null> {
   try {
+    if (Platform.OS === "web") {
+      return localStorage.getItem(TOKEN_KEY);
+    }
     return await SecureStore.getItemAsync(TOKEN_KEY);
   } catch {
     return null;
@@ -16,8 +21,17 @@ export async function getToken(): Promise<string | null> {
 }
 
 export async function setToken(token: string | null) {
-  if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
-  else await SecureStore.deleteItemAsync(TOKEN_KEY);
+  try {
+    if (Platform.OS === "web") {
+      if (token) localStorage.setItem(TOKEN_KEY, token);
+      else localStorage.removeItem(TOKEN_KEY);
+    } else {
+      if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
+      else await SecureStore.deleteItemAsync(TOKEN_KEY);
+    }
+  } catch {
+    // silently ignore storage errors
+  }
 }
 
 export class ApiError extends Error {

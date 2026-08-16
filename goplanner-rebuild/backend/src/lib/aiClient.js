@@ -1,20 +1,23 @@
 import { env } from '../config/env.js';
 import AppError from '../utils/AppError.js';
 
-const HF_ROUTER_URL = 'https://router.huggingface.co/v1/chat/completions';
+const HF_API_URL = 'https://router.huggingface.co/v1/chat/completions';
 
 /**
  * Low-level call to the Hugging Face router's OpenAI-compatible chat endpoint.
  */
 async function callModel(messages, { temperature = 0.3, maxTokens = 1500 } = {}) {
-  if (!env.hfApiKey) {
+  const apiKey = env.hfApiKey;
+  const apiUrl = HF_API_URL;
+
+  if (!apiKey) {
     throw new AppError('AI is not configured on this server (HF_API_KEY missing).', 503);
   }
 
-  const res = await fetch(HF_ROUTER_URL, {
+  const res = await fetch(apiUrl, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${env.hfApiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
