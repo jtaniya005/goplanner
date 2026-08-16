@@ -1,13 +1,26 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { BlurView } from "expo-blur";
+import { StyleSheet, View } from "react-native";
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: { backgroundColor: "#000" },
-        tabBarActiveTintColor: "#fff",
+        tabBarStyle: { 
+          position: 'absolute',
+          backgroundColor: 'rgba(9, 10, 15, 0.65)',
+          borderTopWidth: 0,
+          elevation: 0,
+          height: 60,
+        },
+        tabBarBackground: () => (
+          <BlurView tint="dark" intensity={50} style={StyleSheet.absoluteFill} />
+        ),
+        tabBarActiveTintColor: "#00F2FE",
+        tabBarInactiveTintColor: "#888",
+        tabBarShowLabel: false,
       }}
     >
       {/* ✔ DASHBOARD TAB */}
@@ -15,8 +28,10 @@ export default function TabLayout() {
         name="dashboard"
         options={{
           title: "Dashboard",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <View style={focused ? styles.activeIcon : null}>
+              <Ionicons name={focused ? "home" : "home-outline"} size={26} color={color} />
+            </View>
           ),
         }}
       />
@@ -26,8 +41,10 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <View style={focused ? styles.activeIcon : null}>
+              <Ionicons name={focused ? "person" : "person-outline"} size={26} color={color} />
+            </View>
           ),
         }}
       />
@@ -41,3 +58,11 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  activeIcon: {
+    backgroundColor: "rgba(0, 242, 254, 0.15)",
+    padding: 8,
+    borderRadius: 12,
+  },
+});
