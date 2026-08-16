@@ -14,7 +14,7 @@ const UserSchema = new Schema({
     match: [/^\S+@\S+\.\S+$/, 'Invalid email address']
   },
   password: { type: String, required: true, minlength: 8, select: false },
-  homeCurrency: { type: String, default: 'USD' }
+  homeCurrency: { type: String, default: 'INR' }
 }, { timestamps: true });
 
 UserSchema.pre('save', async function hashPassword() {

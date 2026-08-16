@@ -2,10 +2,16 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 
 export default function auth(req, res, next) {
-  const header = req.headers.authorization || '';
-  const [scheme, token] = header.split(' ');
+  let token = req.query.token;
+  if (!token) {
+    const header = req.headers.authorization || '';
+    const [scheme, credentials] = header.split(' ');
+    if (scheme === 'Bearer') {
+      token = credentials;
+    }
+  }
 
-  if (scheme !== 'Bearer' || !token) {
+  if (!token) {
     return res.status(401).json({ success: false, message: 'Missing or malformed Authorization header' });
   }
 

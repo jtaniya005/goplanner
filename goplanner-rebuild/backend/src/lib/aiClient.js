@@ -10,9 +10,6 @@ async function callModel(messages, { temperature = 0.3, maxTokens = 1500 } = {})
   const apiKey = env.hfApiKey;
   const apiUrl = HF_API_URL;
 
-  console.log('[AI Client] Model:', env.hfModel);
-  console.log('[AI Client] API Key loaded (first 8 chars):', apiKey ? apiKey.substring(0, 8) + '...' : 'undefined');
-
   if (!apiKey) {
     throw new AppError('AI is not configured on this server (HF_API_KEY missing).', 503);
   }
@@ -210,4 +207,28 @@ Respond with ONLY valid JSON matching this shape (a single activity, same schema
   return parsed;
 }
 
-export default { generateItinerary, reviseItineraryForBudget, replanActivity };
+export async function generatePackingList({ destination, days, tripType }) {
+  const messages = [
+    { role: 'system', content: 'You are a meticulous travel packing list generator. You always respond with strictly valid JSON and nothing else.' },
+    {
+      role: 'user',
+      content: `Create a recommended packing list for a ${days}-day trip to ${destination} with trip type "${tripType}".
+
+Respond with ONLY valid JSON matching this shape:
+{
+  "categories": [
+    {
+      "name": "string (e.g., Clothing, Documents, Electronics, Toiletries)",
+      "items": ["string"]
+    }
+  ]
+}`
+    }
+  ];
+
+  const parsed = await generateJson(messages, { maxTokens: 800 });
+  if (!Array.isArray(parsed?.categories)) throw new AppError('AI packing list response was missing a "categories" array.', 502);
+  return parsed;
+}
+
+export default { generateItinerary, reviseItineraryForBudget, replanActivity, generatePackingList };

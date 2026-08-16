@@ -1,4 +1,5 @@
 import Trip from '../models/Trip.js';
+import User from '../models/User.js';
 import AppError from '../utils/AppError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { generateItinerary, reviseItineraryForBudget, replanActivity } from '../lib/aiClient.js';
@@ -44,7 +45,13 @@ export const createTrip = asyncHandler(async (req, res) => {
   if (numBudget != null && (!Number.isFinite(numBudget) || numBudget <= 0)) {
     throw new AppError('budget must be a positive number if provided.', 400);
   }
-  const tripCurrency = currency || 'USD';
+  
+  const user = await User.findById(req.user.id);
+  let tripCurrency = currency || user?.homeCurrency || 'INR';
+
+  if (!currency && destination.toLowerCase().includes('india')) {
+    tripCurrency = 'INR';
+  }
 
   let aiDays = await generateItinerary({
     destination, days: numDays, budget: numBudget, currency: tripCurrency, description
@@ -193,4 +200,176 @@ export const refreshTripWeather = asyncHandler(async (req, res) => {
 
   await trip.save();
   res.json({ success: true, data: trip, atRisk, resolvedLocation: place.resolvedName });
+});
+
+// MANUAL TRIP CREATION
+export const createManualTrip = asyncHandler(async (req, res) => {
+  const { destination, days, description, budget, currency, startDate, itinerary } = req.body;
+
+  if (!destination) throw new AppError('Destination is required.', 400);
+  const numDays = Number(days);
+  if (!Number.isFinite(numDays) || numDays < 1 || numDays > 30) {
+    throw new AppError('days must be a number between 1 and 30.', 400);
+  }
+  const numBudget = budget != null && budget !== '' ? Number(budget) : null;
+  if (numBudget != null && (!Number.isFinite(numBudget) || numBudget <= 0)) {
+    throw new AppError('budget must be a positive number if provided.', 400);
+  }
+
+  const user = await User.findById(req.user.id);
+  let tripCurrency = currency || user?.homeCurrency || 'INR';
+
+  if (!currency && destination.toLowerCase().includes('india')) {
+    tripCurrency = 'INR';
+  }
+
+  const formattedItinerary = [];
+  const baseDate = startDate ? new Date(startDate) : null;
+
+  for (let i = 1; i <= numDays; i++) {
+    const clientDay = (itinerary || []).find((d) => Number(d.day) === i);
+    const date = baseDate ? new Date(baseDate) : null;
+    if (date) date.setDate(date.getDate() + (i - 1));
+
+    const dayActivities = ((clientDay && clientDay.activities) || []).map((a) => ({
+      start: a.start || '09:00',
+      end: a.end || '10:00',
+      activity: a.activity || 'Activity',
+      location: a.location || '',
+      estimatedCost: Number(a.estimatedCost) || 0,
+      reason: a.reason || 'Manually added',
+      weatherSensitive: Boolean(a.weatherSensitive),
+      status: 'planned'
+    }));
+
+    formattedItinerary.push({
+      day: i,
+      date,
+      activities: dayActivities
+    });
+  }
+
+  const trip = new Trip({
+    user: req.user.id,
+    destination,
+    description: description || '',
+    days: numDays,
+    startDate: startDate || null,
+    currency: tripCurrency,
+    budget: numBudget,
+    itinerary: formattedItinerary
+  });
+
+  trip.recomputeTotals();
+  await trip.save();
+
+  res.status(201).json({ success: true, data: trip });
+});
+
+// ADD MANUAL ACTIVITY
+export const addActivity = asyncHandler(async (req, res) => {
+  const trip = await loadOwnedTrip(req);
+  const dayNum = Number(req.params.day);
+  const { start, end, activity, location, estimatedCost, weatherSensitive } = req.body;
+
+  if (!start || !end || !activity) {
+    throw new AppError('start, end, and activity fields are required.', 400);
+  }
+
+  let dayObj = trip.itinerary.find((d) => d.day === dayNum);
+  if (!dayObj) {
+    const baseDate = trip.startDate ? new Date(trip.startDate) : null;
+    const date = baseDate ? new Date(baseDate) : null;
+    if (date) date.setDate(date.getDate() + (dayNum - 1));
+    dayObj = {
+      day: dayNum,
+      date,
+      activities: []
+    };
+    trip.itinerary.push(dayObj);
+    trip.itinerary.sort((a, b) => a.day - b.day);
+    dayObj = trip.itinerary.find((d) => d.day === dayNum);
+  }
+
+  dayObj.activities.push({
+    start,
+    end,
+    activity,
+    location: location || '',
+    estimatedCost: Number(estimatedCost) || 0,
+    weatherSensitive: Boolean(weatherSensitive),
+    status: 'planned',
+    reason: 'Manually added'
+  });
+
+  trip.recomputeTotals();
+  await trip.save();
+
+  res.json({ success: true, data: trip });
+});
+
+// EDIT MANUAL ACTIVITY
+export const editActivity = asyncHandler(async (req, res) => {
+  const trip = await loadOwnedTrip(req);
+  const dayNum = Number(req.params.day);
+  const index = Number(req.params.index);
+  const { start, end, activity, location, estimatedCost, weatherSensitive, status } = req.body;
+
+  const dayObj = trip.itinerary.find((d) => d.day === dayNum);
+  if (!dayObj) throw new AppError('Day not found.', 404);
+
+  const act = dayObj.activities[index];
+  if (!act) throw new AppError('Activity not found at that index.', 404);
+
+  if (start !== undefined) act.start = start;
+  if (end !== undefined) act.end = end;
+  if (activity !== undefined) act.activity = activity;
+  if (location !== undefined) act.location = location;
+  if (estimatedCost !== undefined) act.estimatedCost = Number(estimatedCost) || 0;
+  if (weatherSensitive !== undefined) act.weatherSensitive = Boolean(weatherSensitive);
+  if (status !== undefined) act.status = status;
+
+  trip.recomputeTotals();
+  await trip.save();
+
+  res.json({ success: true, data: trip });
+});
+
+// DELETE MANUAL ACTIVITY
+export const deleteActivity = asyncHandler(async (req, res) => {
+  const trip = await loadOwnedTrip(req);
+  const dayNum = Number(req.params.day);
+  const index = Number(req.params.index);
+
+  const dayObj = trip.itinerary.find((d) => d.day === dayNum);
+  if (!dayObj) throw new AppError('Day not found.', 404);
+
+  if (index < 0 || index >= dayObj.activities.length) {
+    throw new AppError('Activity not found at that index.', 404);
+  }
+
+  dayObj.activities.splice(index, 1);
+
+  trip.recomputeTotals();
+  await trip.save();
+
+  res.json({ success: true, data: trip });
+});
+
+// STANDALONE WEATHER LOOKUP
+export const standaloneWeatherLookup = asyncHandler(async (req, res) => {
+  const { destination, days, startDate } = req.query;
+
+  if (!destination) throw new AppError('destination query parameter is required.', 400);
+  const numDays = Number(days || 7);
+  if (!Number.isFinite(numDays) || numDays < 1 || numDays > 16) {
+    throw new AppError('days must be between 1 and 16.', 400);
+  }
+
+  const result = await getDailyForecast(destination, startDate, numDays);
+  if (!result.place) {
+    throw new AppError(`Could not resolve location "${destination}" for weather lookup.`, 404);
+  }
+
+  res.json({ success: true, data: result.forecast, place: result.place });
 });

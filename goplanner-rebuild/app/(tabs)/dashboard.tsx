@@ -5,13 +5,16 @@ import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { tripApi, Trip } from "@/lib/api";
+import { tripApi, Trip, getCurrencySymbol } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { colors, fonts } from "@/lib/theme";
+import TripTicketCard from "@/components/TripTicketCard";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -42,23 +45,94 @@ export default function Dashboard() {
     load();
   };
 
+  const tripCount = trips.length;
+  const symbol = getCurrencySymbol(user?.homeCurrency || "INR");
+  const totalCost = trips.reduce((sum, t) => sum + (t.totalEstimatedCost || 0), 0);
+  const statsEyebrow = `${tripCount} TRIP${tripCount === 1 ? "" : "S"} · ${symbol}${totalCost.toLocaleString()} PLANNED`;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Hi{user?.name ? `, ${user.name.split(" ")[0]}` : ""} 👋</Text>
-        <Text style={styles.subtitle}>Your trips</Text>
+        <Text style={styles.eyebrow}>{statsEyebrow.toUpperCase()}</Text>
+      </View>
+
+      {/* Horizontal Shortcuts Row */}
+      <View style={{ height: 85, marginBottom: 28, marginTop: 8 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.shortcutsContent}
+        >
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={styles.shortcutTile}
+            onPress={() => router.push("/(tabs)/manual-trip")}
+          >
+            <View style={[styles.iconBadge, { backgroundColor: "rgba(74, 144, 226, 0.15)" }]}>
+              <Ionicons name="create-outline" size={16} color="#4A90E2" />
+            </View>
+            <Text style={styles.shortcutLabel} numberOfLines={1}>Manual</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={styles.shortcutTile}
+            onPress={() => router.push("/(tabs)/day-planner")}
+          >
+            <View style={[styles.iconBadge, { backgroundColor: "rgba(92, 184, 138, 0.15)" }]}>
+              <Ionicons name="calendar-outline" size={16} color="#5CB88A" />
+            </View>
+            <Text style={styles.shortcutLabel} numberOfLines={1}>Planner</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={styles.shortcutTile}
+            onPress={() => router.push("/(tabs)/itinerary-editor")}
+          >
+            <View style={[styles.iconBadge, { backgroundColor: "rgba(226, 162, 76, 0.15)" }]}>
+              <Ionicons name="pencil-outline" size={16} color="#E2A24C" />
+            </View>
+            <Text style={styles.shortcutLabel} numberOfLines={1}>Itinerary</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={styles.shortcutTile}
+            onPress={() => router.push("/(tabs)/maps")}
+          >
+            <View style={[styles.iconBadge, { backgroundColor: "rgba(76, 201, 217, 0.15)" }]}>
+              <Ionicons name="map-outline" size={16} color="#4CC9D9" />
+            </View>
+            <Text style={styles.shortcutLabel} numberOfLines={1}>Maps</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={styles.shortcutTile}
+            onPress={() => router.push("/(tabs)/weather")}
+          >
+            <View style={[styles.iconBadge, { backgroundColor: "rgba(142, 36, 170, 0.15)" }]}>
+              <Ionicons name="rainy-outline" size={16} color="#8E24AA" />
+            </View>
+            <Text style={styles.shortcutLabel} numberOfLines={1}>Weather</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       <TouchableOpacity style={styles.newTripBtn} onPress={() => router.push("/(tabs)/trip-planner")}>
-        <Ionicons name="add-circle" size={22} color="#fff" />
+        <View style={styles.addBadge}>
+          <Ionicons name="add" size={16} color={colors.primary} />
+        </View>
         <Text style={styles.newTripText}>Plan a new trip</Text>
       </TouchableOpacity>
 
       {loading ? (
-        <ActivityIndicator color="#4A90E2" style={{ marginTop: 40 }} />
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : trips.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="airplane-outline" size={48} color="#333" />
+          <Ionicons name="airplane-outline" size={48} color={colors.textFaint} />
           <Text style={styles.emptyText}>No trips yet — plan your first one above.</Text>
         </View>
       ) : (
@@ -66,22 +140,12 @@ export default function Dashboard() {
           data={trips}
           keyExtractor={(t) => t._id}
           contentContainerStyle={{ paddingBottom: 40 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4A90E2" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} onPress={() => router.push(`/trip/${item._id}`)}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{item.destination}</Text>
-                <Text style={styles.cardMeta}>
-                  {item.days} day{item.days === 1 ? "" : "s"}
-                  {item.budget ? ` · Budget $${item.budget}` : ""}
-                </Text>
-                <Text style={[styles.cardCost, item.overBudget && styles.overBudget]}>
-                  Est. ${item.totalEstimatedCost}
-                  {item.overBudget ? " — over budget" : ""}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#666" />
-            </TouchableOpacity>
+            <TripTicketCard
+              item={item}
+              onPress={() => router.push(`/trip/${item._id}`)}
+            />
           )}
         />
       )}
@@ -90,35 +154,62 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0D0D0D", paddingTop: 60, paddingHorizontal: 20 },
-  header: { marginBottom: 16 },
-  title: { color: "white", fontSize: 26, fontWeight: "bold" },
-  subtitle: { color: "#888", fontSize: 14, marginTop: 2 },
+  container: { flex: 1, backgroundColor: colors.bg, paddingTop: 60, paddingHorizontal: 20 },
+  header: { marginBottom: 20 },
+  title: { color: colors.textPrimary, fontSize: 26, fontFamily: fonts.bold },
+  eyebrow: { color: colors.textMuted, fontSize: 11, fontFamily: fonts.medium, letterSpacing: 1.5, marginTop: 4 },
   newTripBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#4A90E2",
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: colors.primaryMuted,
+    borderStyle: "dashed",
     borderRadius: 12,
     paddingVertical: 14,
-    marginBottom: 20,
+    marginBottom: 24,
     gap: 8,
   },
-  newTripText: { color: "white", fontWeight: "700", fontSize: 16 },
-  empty: { alignItems: "center", marginTop: 60, gap: 10 },
-  emptyText: { color: "#666", fontSize: 14, textAlign: "center", paddingHorizontal: 30 },
-  card: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#2a2a2a",
-    flexDirection: "row",
+  addBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#182C40", // subtle primary blue tint background
+    justifyContent: "center",
     alignItems: "center",
   },
-  cardTitle: { color: "white", fontSize: 17, fontWeight: "700" },
-  cardMeta: { color: "#888", fontSize: 13, marginTop: 4 },
-  cardCost: { color: "#4A90E2", fontSize: 13, marginTop: 6, fontWeight: "600" },
-  overBudget: { color: "#E25C5C" },
+  newTripText: { color: colors.primary, fontSize: 16, fontFamily: fonts.bold },
+  empty: { alignItems: "center", marginTop: 60, gap: 10 },
+  emptyText: { color: colors.textMuted, fontSize: 14, textAlign: "center", paddingHorizontal: 30, fontFamily: fonts.medium },
+  shortcutsContent: {
+    paddingRight: 10,
+    gap: 12,
+    flexDirection: "row",
+  },
+  shortcutTile: {
+    width: 76,
+    height: 76,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 8,
+  },
+  iconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  shortcutLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontFamily: fonts.medium,
+    textAlign: "center",
+  },
 });

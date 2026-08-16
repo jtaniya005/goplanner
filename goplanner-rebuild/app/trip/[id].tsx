@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,8 +14,9 @@ import {
   View,
 } from "react-native";
 import Toast from "react-native-toast-message";
-import { tripApi, Trip } from "@/lib/api";
+import { tripApi, Trip, getToken, getCurrencySymbol } from "@/lib/api";
 import { ApiError, useRequireAuth } from "@/context/AuthContext";
+import { colors, fonts } from "@/lib/theme";
 
 export default function TripDetail() {
   useRequireAuth();
@@ -45,7 +47,15 @@ export default function TripDetail() {
   );
 
   const handleCheckWeather = async () => {
-    if (!id) return;
+    if (!id || !trip) return;
+    if (!trip.startDate) {
+      if (Platform.OS === "web") {
+        window.alert("This trip has no start date set — weather forecast integration requires a start date.");
+      } else {
+        Alert.alert("No start date", "Weather forecast integration requires a start date.");
+      }
+      return;
+    }
     setCheckingWeather(true);
     try {
       const res = await tripApi.refreshWeather(id);
@@ -85,36 +95,84 @@ export default function TripDetail() {
   };
 
   const promptReplan = (day: number, index: number, weatherSensitive: boolean) => {
-    Alert.alert("Re-plan this activity", "Why does it need replacing?", [
-      { text: "Bad weather", onPress: () => handleReplan(day, index, "weather"), style: weatherSensitive ? "default" : undefined },
-      { text: "It's closed", onPress: () => handleReplan(day, index, "closed") },
-      { text: "Just want something else", onPress: () => handleReplan(day, index, "other") },
-      { text: "Cancel", style: "cancel" },
-    ]);
+    if (Platform.OS === "web") {
+      const choice = window.prompt(
+        "Re-plan this activity. Why does it need replacing?\n\n" +
+        "1. Bad weather\n" +
+        "2. It's closed\n" +
+        "3. Just want something else\n\n" +
+        "Enter selection (1-3):"
+      );
+      if (choice === "1") handleReplan(day, index, "weather");
+      else if (choice === "2") handleReplan(day, index, "closed");
+      else if (choice === "3") handleReplan(day, index, "other");
+    } else {
+      Alert.alert("Re-plan this activity", "Why does it need replacing?", [
+        { text: "Bad weather", onPress: () => handleReplan(day, index, "weather"), style: weatherSensitive ? "default" : undefined },
+        { text: "It's closed", onPress: () => handleReplan(day, index, "closed") },
+        { text: "Just want something else", onPress: () => handleReplan(day, index, "other") },
+        { text: "Cancel", style: "cancel" },
+      ]);
+    }
   };
 
-  const handleExport = (format: "ics" | "pdf") => {
+  const handleExport = async (format: "ics" | "pdf") => {
     if (!id) return;
-    Linking.openURL(tripApi.exportUrl(id, format));
+    if (Platform.OS === "web") {
+      // Get token synchronously on web to prevent browser pop-up blocker from blocking window.open
+      const token = localStorage.getItem("goplanner_token");
+      const url = tripApi.exportUrl(id, format, token);
+      window.open(url, "_blank");
+    } else {
+      const token = await getToken();
+      Linking.openURL(tripApi.exportUrl(id, format, token));
+    }
+  };
+
+  const handleOpenMap = (location: string) => {
+    const query = encodeURIComponent(location);
+    const url = Platform.select({
+      ios: `maps://0,0?q=${query}`,
+      android: `geo:0,0?q=${query}`,
+      default: `https://www.google.com/maps/search/?api=1&query=${query}`,
+    });
+    Linking.openURL(url);
+  };
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)/dashboard");
+    }
   };
 
   const handleDelete = () => {
     if (!id) return;
-    Alert.alert("Delete trip", "This can't be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await tripApi.remove(id);
-            router.replace("/(tabs)/dashboard");
-          } catch {
-            Toast.show({ type: "error", text1: "Could not delete trip" });
-          }
+    const performDelete = async () => {
+      try {
+        await tripApi.remove(id);
+        router.replace("/(tabs)/dashboard");
+      } catch {
+        Toast.show({ type: "error", text1: "Could not delete trip" });
+      }
+    };
+
+    if (Platform.OS === "web") {
+      const confirm = window.confirm("Delete trip? This can't be undone.");
+      if (confirm) {
+        performDelete();
+      }
+    } else {
+      Alert.alert("Delete trip", "This can't be undone.", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: performDelete,
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   if (loading || !trip) {
@@ -130,7 +188,7 @@ export default function TripDetail() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
+        <TouchableOpacity onPress={handleBack} hitSlop={10}>
           <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
         <TouchableOpacity onPress={handleDelete} hitSlop={10}>
@@ -138,7 +196,12 @@ export default function TripDetail() {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.title}>{trip.destination}</Text>
+      <View style={styles.titleRow}>
+        <Text style={styles.title}>{trip.destination}</Text>
+        <TouchableOpacity onPress={() => handleOpenMap(trip.destination)} style={styles.mapBtn} hitSlop={10}>
+          <Ionicons name="map-outline" size={20} color="#4A90E2" />
+        </TouchableOpacity>
+      </View>
       <Text style={styles.subtitle}>
         {trip.days} day{trip.days === 1 ? "" : "s"}
         {trip.description ? ` · ${trip.description}` : ""}
@@ -148,7 +211,7 @@ export default function TripDetail() {
         <View style={styles.budgetCard}>
           <View style={styles.budgetRow}>
             <Text style={styles.budgetLabel}>
-              ${trip.totalEstimatedCost} of ${trip.budget} {trip.currency}
+              {getCurrencySymbol(trip.currency)}{trip.totalEstimatedCost} of {getCurrencySymbol(trip.currency)}{trip.budget} {trip.currency}
             </Text>
             {trip.overBudget && <Text style={styles.overBudgetTag}>Over budget</Text>}
           </View>
@@ -162,7 +225,7 @@ export default function TripDetail() {
           </View>
         </View>
       ) : (
-        <Text style={styles.noBudget}>Est. total: ${trip.totalEstimatedCost} {trip.currency}</Text>
+        <Text style={styles.noBudget}>Est. total: {getCurrencySymbol(trip.currency)}{trip.totalEstimatedCost} {trip.currency}</Text>
       )}
 
       <View style={styles.actionsRow}>
@@ -214,7 +277,16 @@ export default function TripDetail() {
                     {act.start}–{act.end}
                   </Text>
                   <Text style={styles.activityName}>{act.activity}</Text>
-                  {!!act.location && <Text style={styles.activityLocation}>{act.location}</Text>}
+                  {!!act.location && (
+                    <TouchableOpacity
+                      onPress={() => handleOpenMap(act.location)}
+                      style={styles.locationRow}
+                      hitSlop={5}
+                    >
+                      <Ionicons name="location-outline" size={13} color="#888" style={{ marginRight: 4 }} />
+                      <Text style={styles.activityLocation}>{act.location}</Text>
+                    </TouchableOpacity>
+                  )}
                   {!!act.reason && (
                     <Text style={styles.activityReason}>
                       <Text style={{ fontWeight: "700" }}>Why: </Text>
@@ -222,7 +294,7 @@ export default function TripDetail() {
                     </Text>
                   )}
                   <View style={styles.activityFooterRow}>
-                    {act.estimatedCost > 0 && <Text style={styles.activityCost}>${act.estimatedCost}</Text>}
+                    {act.estimatedCost > 0 && <Text style={styles.activityCost}>{getCurrencySymbol(trip.currency)}{act.estimatedCost}</Text>}
                     {act.status === "replaced" && <Text style={styles.replacedTag}>Replaced</Text>}
                   </View>
                 </View>
@@ -247,54 +319,57 @@ export default function TripDetail() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0D0D0D", paddingTop: 55, paddingHorizontal: 20 },
-  center: { flex: 1, backgroundColor: "#0D0D0D", alignItems: "center", justifyContent: "center" },
+  container: { flex: 1, backgroundColor: colors.bg, paddingTop: 55, paddingHorizontal: 20 },
+  center: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
   headerRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
-  title: { color: "white", fontSize: 26, fontWeight: "bold" },
-  subtitle: { color: "#888", fontSize: 13, marginTop: 4, marginBottom: 16 },
-  budgetCard: { backgroundColor: "#1a1a1a", borderRadius: 12, padding: 14, marginBottom: 16 },
+  title: { color: colors.textPrimary, fontSize: 26, fontFamily: fonts.bold },
+  subtitle: { color: colors.textMuted, fontSize: 13, marginTop: 4, marginBottom: 16, fontFamily: fonts.medium },
+  budgetCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: colors.border },
   budgetRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  budgetLabel: { color: "white", fontWeight: "600" },
-  overBudgetTag: { color: "#E25C5C", fontSize: 12, fontWeight: "700" },
-  budgetBarBg: { height: 8, borderRadius: 4, backgroundColor: "#2a2a2a", overflow: "hidden" },
+  budgetLabel: { color: colors.textPrimary, fontFamily: fonts.medium },
+  overBudgetTag: { color: colors.danger, fontSize: 12, fontFamily: fonts.bold },
+  budgetBarBg: { height: 8, borderRadius: 4, backgroundColor: colors.border, overflow: "hidden" },
   budgetBarFill: { height: 8, borderRadius: 4 },
-  noBudget: { color: "#888", fontSize: 13, marginBottom: 16 },
+  noBudget: { color: colors.textMuted, fontSize: 13, marginBottom: 16, fontFamily: fonts.medium },
   actionsRow: { flexDirection: "row", gap: 10, marginBottom: 24 },
   actionBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: colors.border,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 10,
     flex: 1,
     justifyContent: "center",
   },
-  actionBtnText: { color: "white", fontSize: 12, fontWeight: "600" },
+  actionBtnText: { color: colors.textPrimary, fontSize: 12, fontFamily: fonts.medium },
   dayBlock: { marginBottom: 22 },
   dayHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  dayHeader: { color: "#4A90E2", fontSize: 17, fontWeight: "700" },
-  weatherTag: { color: "#888", fontSize: 12 },
+  dayHeader: { color: colors.primary, fontSize: 17, fontFamily: fonts.bold },
+  weatherTag: { color: colors.textMuted, fontSize: 12, fontFamily: fonts.medium },
   activityCard: {
     flexDirection: "row",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#2a2a2a",
+    borderColor: colors.border,
     alignItems: "flex-start",
   },
   activityCancelled: { opacity: 0.4 },
-  activityTime: { color: "#4A90E2", fontSize: 12, fontWeight: "700", marginBottom: 2 },
-  activityName: { color: "white", fontSize: 15, fontWeight: "700" },
-  activityLocation: { color: "#999", fontSize: 12, marginTop: 2 },
-  activityReason: { color: "#aaa", fontSize: 12, marginTop: 6, fontStyle: "italic" },
+  activityTime: { color: colors.primary, fontSize: 12, fontFamily: fonts.bold, marginBottom: 2 },
+  activityName: { color: colors.textPrimary, fontSize: 15, fontFamily: fonts.bold },
+  activityLocation: { color: colors.textMuted, fontSize: 12 },
+  activityReason: { color: colors.textMuted, fontSize: 12, marginTop: 6, fontStyle: "italic", fontFamily: fonts.medium },
   activityFooterRow: { flexDirection: "row", gap: 10, marginTop: 8 },
-  activityCost: { color: "#4A90E2", fontSize: 12, fontWeight: "700" },
-  replacedTag: { color: "#E2A25C", fontSize: 11, fontWeight: "700" },
+  activityCost: { color: colors.primary, fontSize: 12, fontFamily: fonts.bold },
+  replacedTag: { color: colors.secondary, fontSize: 11, fontFamily: fonts.bold },
   replanBtn: { padding: 6, marginLeft: 8 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 2 },
+  mapBtn: { padding: 4 },
+  locationRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
 });

@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import Toast from "react-native-toast-message";
 import { useAuth, ApiError } from "@/context/AuthContext";
+import { colors, fonts } from "@/lib/theme";
 
 export default function LoginScreen() {
   const { login, register } = useAuth();
@@ -130,39 +131,42 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0D0D0D",
+    backgroundColor: colors.bg,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 25,
   },
   logo: { width: 120, height: 120, marginBottom: 6 },
-  title: { fontSize: 28, color: "white", fontWeight: "700", marginBottom: 24 },
+  title: { fontSize: 28, color: colors.textPrimary, fontFamily: fonts.bold, marginBottom: 24 },
   tabRow: {
     flexDirection: "row",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderRadius: 10,
     padding: 4,
     marginBottom: 20,
     width: "100%",
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   tabBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: "center" },
-  tabBtnActive: { backgroundColor: "#4A90E2" },
-  tabText: { color: "#888", fontWeight: "600" },
-  tabTextActive: { color: "white" },
+  tabBtnActive: { backgroundColor: colors.primary },
+  tabText: { color: colors.textMuted, fontFamily: fonts.medium },
+  tabTextActive: { color: colors.textPrimary },
   input: {
     width: "100%",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     padding: 14,
     borderRadius: 10,
-    color: "white",
+    color: colors.textPrimary,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: colors.border,
+    fontFamily: fonts.medium,
   },
-  hint: { color: "#666", fontSize: 12, alignSelf: "flex-start", marginBottom: 12, marginTop: -6 },
+  hint: { color: colors.textFaint, fontSize: 12, alignSelf: "flex-start", marginBottom: 12, marginTop: -6, fontFamily: fonts.medium },
   button: {
     width: "100%",
-    backgroundColor: "#4A90E2",
+    backgroundColor: colors.primary,
     padding: 14,
     borderRadius: 10,
     alignItems: "center",
@@ -170,5 +174,5 @@ const styles = StyleSheet.create({
     minHeight: 50,
     justifyContent: "center",
   },
-  buttonText: { color: "white", fontWeight: "600", fontSize: 18 },
+  buttonText: { color: "white", fontFamily: fonts.bold, fontSize: 18 },
 });

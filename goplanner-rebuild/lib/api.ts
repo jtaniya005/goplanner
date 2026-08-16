@@ -148,7 +148,143 @@ export const tripApi = {
       `/api/trips/${id}/weather/refresh`,
       { method: "POST" }
     ),
-  exportUrl: (id: string, format: "ics" | "pdf") => `${API_URL}/api/trips/${id}/export/${format}`,
+  exportUrl: (id: string, format: "ics" | "pdf", token?: string | null) =>
+    `${API_URL}/api/trips/${id}/export/${format}${token ? `?token=${encodeURIComponent(token)}` : ""}`,
+
+  createManual: (body: {
+    destination: string;
+    days: number;
+    description?: string;
+    budget?: number | null;
+    currency?: string;
+    startDate?: string | null;
+    itinerary?: Array<{ day: number; activities: Array<any> }>;
+  }) =>
+    request<{ success: boolean; data: Trip }>("/api/trips/manual", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  addActivity: (id: string, day: number, body: {
+    start: string;
+    end: string;
+    activity: string;
+    location?: string;
+    estimatedCost?: number;
+    weatherSensitive?: boolean;
+  }) =>
+    request<{ success: boolean; data: Trip }>(`/api/trips/${id}/days/${day}/activities`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  editActivity: (id: string, day: number, index: number, body: {
+    start?: string;
+    end?: string;
+    activity?: string;
+    location?: string;
+    estimatedCost?: number;
+    weatherSensitive?: boolean;
+    status?: string;
+  }) =>
+    request<{ success: boolean; data: Trip }>(`/api/trips/${id}/days/${day}/activities/${index}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteActivity: (id: string, day: number, index: number) =>
+    request<{ success: boolean; data: Trip }>(`/api/trips/${id}/days/${day}/activities/${index}`, {
+      method: "DELETE",
+    }),
 };
+
+export const weatherApi = {
+  lookup: (destination: string, days: number, startDate?: string) => {
+    const params = new URLSearchParams();
+    params.append("destination", destination);
+    params.append("days", String(days));
+    if (startDate) params.append("startDate", startDate);
+    return request<{ success: boolean; data: any[]; place: any }>(`/api/trips/weather/lookup?${params.toString()}`);
+  },
+};
+
+export const currencyApi = {
+  convert: async (amount: number, from: string, to: string) => {
+    if (from === to) return amount;
+    const res = await request<{ success: boolean; convertedAmount: number }>(
+      `/api/tools/convert-currency?amount=${amount}&from=${from}&to=${to}`
+    );
+    return res.convertedAmount;
+  },
+};
+
+export const toolsApi = {
+  getPackingList: (payload: { destination: string; days: number; tripType: string }) =>
+    request<{ success: boolean; data: Array<{ name: string; items: string[] }> }>("/api/tools/packing-list", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+};
+
+export interface Task {
+  _id: string;
+  user: string;
+  date: string;
+  start: string;
+  end: string;
+  title: string;
+  category: "meeting" | "appointment" | "personal" | "travel" | "other";
+  location: string;
+  notes: string;
+  completed: boolean;
+}
+
+export const taskApi = {
+  list: (date: string) =>
+    request<{ success: boolean; data: Task[] }>(`/api/tasks?date=${encodeURIComponent(date)}`),
+  create: (body: {
+    date: string;
+    start: string;
+    end: string;
+    title: string;
+    category?: string;
+    location?: string;
+    notes?: string;
+  }) =>
+    request<{ success: boolean; data: Task }>("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  update: (id: string, body: {
+    date?: string;
+    start?: string;
+    end?: string;
+    title?: string;
+    category?: string;
+    location?: string;
+    notes?: string;
+    completed?: boolean;
+  }) =>
+    request<{ success: boolean; data: Task }>(`/api/tasks/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  remove: (id: string) =>
+    request<{ success: boolean; data: { id: string } }>(`/api/tasks/${id}`, {
+      method: "DELETE",
+    }),
+};
+
+export function getCurrencySymbol(currency?: string) {
+  switch (currency) {
+    case "INR":
+      return "₹";
+    case "EUR":
+      return "€";
+    case "GBP":
+      return "£";
+    case "JPY":
+      return "¥";
+    default:
+      return "$";
+  }
+}
 
 export { API_URL };
