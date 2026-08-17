@@ -12,6 +12,8 @@ import taskRoutes from './routes/taskRoutes.js';
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 app.use(cors({ origin: env.corsOrigin === '*' ? '*' : env.corsOrigin.split(','), credentials: true }));
 app.use(express.json({ limit: '32kb' }));
 app.use(express.urlencoded({ extended: true, limit: '32kb' }));
